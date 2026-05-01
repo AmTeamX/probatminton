@@ -12,7 +12,21 @@ class Formatters {
   }
 
   static String time(String time24) {
-    final parts = time24.split(':');
+    // Handle ISO datetime strings (e.g. "2026-05-01T12:00:00Z")
+    String raw = time24;
+    if (raw.contains('T')) {
+      // Extract the time portion after 'T'
+      raw = raw.split('T').last;
+    }
+    // Remove trailing 'Z' or timezone offset
+    raw = raw.replaceAll(RegExp(r'[Zz]$'), '');
+    // Handle timezone offset like +07:00
+    final tzMatch = RegExp(r'[+-]\d{2}:\d{2}$').firstMatch(raw);
+    if (tzMatch != null) {
+      raw = raw.substring(0, tzMatch.start);
+    }
+
+    final parts = raw.split(':');
     final hour = int.parse(parts[0]);
     final minute = parts[1];
     final period = hour >= 12 ? 'PM' : 'AM';

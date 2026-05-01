@@ -40,26 +40,24 @@ class WaitlistListNotifier extends StateNotifier<WaitlistListState> {
   Future<void> loadWaitlist() async {
     state = const WaitlistListLoading();
     try {
-      final response = await _waitlistApi.getWaitlist();
+      // GET /api/waitlist/my returns a flat JSON array
+      final response = await _waitlistApi.getMyWaitlist();
       dynamic data = response.data;
       if (data is String) data = jsonDecode(data);
-      if (data is Map && data['waitlist'] != null) {
-        final raw = data['waitlist'];
-        final list = raw is List ? raw : [];
-        final entries = list
-            .map(
-              (j) => WaitlistEntry.fromJson(
-                j is Map<String, dynamic>
-                    ? j
-                    : Map<String, dynamic>.from(j as Map),
-              ),
-            )
+
+      final List<WaitlistEntry> entries;
+
+      if (data is List) {
+        // Backend returns a flat array
+        entries = data
+            .whereType<Map<String, dynamic>>()
+            .map((j) => WaitlistEntry.fromJson(j))
             .toList();
-        state = WaitlistListLoaded(entries);
       } else if (data is Map && data['entries'] != null) {
+        // Fallback: wrapped in { "entries": [...] }
         final raw = data['entries'];
         final list = raw is List ? raw : [];
-        final entries = list
+        entries = list
             .map(
               (j) => WaitlistEntry.fromJson(
                 j is Map<String, dynamic>
@@ -68,10 +66,24 @@ class WaitlistListNotifier extends StateNotifier<WaitlistListState> {
               ),
             )
             .toList();
-        state = WaitlistListLoaded(entries);
+      } else if (data is Map && data['waitlist'] != null) {
+        // Fallback: wrapped in { "waitlist": [...] }
+        final raw = data['waitlist'];
+        final list = raw is List ? raw : [];
+        entries = list
+            .map(
+              (j) => WaitlistEntry.fromJson(
+                j is Map<String, dynamic>
+                    ? j
+                    : Map<String, dynamic>.from(j as Map),
+              ),
+            )
+            .toList();
       } else {
-        state = const WaitlistListLoaded([]);
+        entries = [];
       }
+
+      state = WaitlistListLoaded(entries);
     } catch (e) {
       state = WaitlistListError('Failed to load waitlist: $e');
     }
@@ -125,23 +137,28 @@ class JoinWaitlistNotifier extends StateNotifier<JoinWaitlistState> {
 
   JoinWaitlistNotifier(this._waitlistApi) : super(const JoinWaitlistIdle());
 
+  /// Join waitlist using backend fields:
+  /// - courtId, requestedDate (YYYY-MM-DD), preferredTimeSlot (HH:MM-HH:MM)
   Future<void> joinWaitlist({
     required String courtId,
-    required String date,
-    required String startTime,
-    required String endTime,
+    required String requestedDate,
+    required String preferredTimeSlot,
   }) async {
     state = const JoinWaitlistJoining();
     try {
       final response = await _waitlistApi.joinWaitlist({
         'court_id': courtId,
-        'date': date,
-        'start_time': startTime,
-        'end_time': endTime,
+        'requested_date': requestedDate,
+        'preferred_time_slot': preferredTimeSlot,
       });
       dynamic data = response.data;
       if (data is String) data = jsonDecode(data);
-      if (data is Map && data['entry'] != null) {
+
+      // Backend returns the entry directly as a flat object
+      if (data is Map<String, dynamic>) {
+        final entry = WaitlistEntry.fromJson(data);
+        state = JoinWaitlistSuccess(entry);
+      } else if (data is Map && data['entry'] != null) {
         final entry = WaitlistEntry.fromJson(
           Map<String, dynamic>.from(data['entry'] as Map),
         );
@@ -168,4 +185,71 @@ final joinWaitlistProvider =
     StateNotifierProvider<JoinWaitlistNotifier, JoinWaitlistState>((ref) {
       final waitlistApi = ref.watch(waitlistApiProvider);
       return JoinWaitlistNotifier(waitlistApi);
+    });
+
+// ── Confirm Waitlist ──
+
+sealed class ConfirmWaitlistState {
+  const ConfirmWaitlistState();
+}
+
+class ConfirmWaitlistIdle extends ConfirmWaitlistState {
+  const ConfirmWaitlistIdle();
+}
+
+class ConfirmWaitlistConfirming extends ConfirmWaitlistState {
+  const ConfirmWaitlistConfirming();
+}
+
+class ConfirmWaitlistSuccess extends ConfirmWaitlistState {
+  final Map<String, dynamic> booking;
+  const ConfirmWaitlistSuccess(this.booking);
+}
+
+class ConfirmWaitlistError extends ConfirmWaitlistState {
+  final String message;
+  const ConfirmWaitlistError(this.message);
+}
+
+class ConfirmWaitlistNotifier extends StateNotifier<ConfirmWaitlistState> {
+  final WaitlistApi _waitlistApi;
+
+  ConfirmWaitlistNotifier(this._waitlistApi)
+    : super(const ConfirmWaitlistIdle());
+
+  Future<void> confirm(
+    String entryId, {
+    String? paymentMethod,
+    String? transferReference,
+  }) async {
+    state = const ConfirmWaitlistConfirming();
+    try {
+      final response = await _waitlistApi.confirmWaitlist(
+        entryId,
+        paymentMethod: paymentMethod,
+        transferReference: transferReference,
+      );
+      dynamic data = response.data;
+      if (data is String) data = jsonDecode(data);
+      if (data is Map && data['booking'] != null) {
+        state = ConfirmWaitlistSuccess(
+          Map<String, dynamic>.from(data['booking'] as Map),
+        );
+      } else {
+        state = const ConfirmWaitlistError('Failed to confirm waitlist');
+      }
+    } catch (e) {
+      state = ConfirmWaitlistError('Failed to confirm waitlist: $e');
+    }
+  }
+
+  void reset() {
+    state = const ConfirmWaitlistIdle();
+  }
+}
+
+final confirmWaitlistProvider =
+    StateNotifierProvider<ConfirmWaitlistNotifier, ConfirmWaitlistState>((ref) {
+      final waitlistApi = ref.watch(waitlistApiProvider);
+      return ConfirmWaitlistNotifier(waitlistApi);
     });

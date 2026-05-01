@@ -813,13 +813,14 @@ class _JoinWaitlistSheetState extends ConsumerState<_JoinWaitlistSheet> {
     final dateStr =
         '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
 
+    final timeSlot = '${_startTime.text.trim()}-${_endTime.text.trim()}';
+
     await ref
         .read(joinWaitlistProvider.notifier)
         .joinWaitlist(
           courtId: widget.courtId,
-          date: dateStr,
-          startTime: _startTime.text.trim(),
-          endTime: _endTime.text.trim(),
+          requestedDate: dateStr,
+          preferredTimeSlot: timeSlot,
         );
 
     final state = ref.read(joinWaitlistProvider);

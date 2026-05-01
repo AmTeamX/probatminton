@@ -149,9 +149,9 @@ class _WaitlistCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: entry.status == 'notified'
+                    color: entry.status == 'NOTIFIED'
                         ? const Color(0xFFE8F5E9)
-                        : entry.status == 'expired'
+                        : entry.status == 'EXPIRED'
                         ? const Color(0xFFFFEBEE)
                         : const Color(0xFFFFF8E1),
                     borderRadius: BorderRadius.circular(12),
@@ -161,9 +161,9 @@ class _WaitlistCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: entry.status == 'notified'
+                      color: entry.status == 'NOTIFIED'
                           ? AppTheme.success
-                          : entry.status == 'expired'
+                          : entry.status == 'EXPIRED'
                           ? AppTheme.error
                           : Colors.orange.shade700,
                     ),
@@ -223,7 +223,7 @@ class _WaitlistCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (entry.status != 'expired')
+                if (entry.status != 'EXPIRED')
                   TextButton.icon(
                     onPressed: onLeave,
                     icon: const Icon(Icons.exit_to_app, size: 18),
@@ -242,8 +242,9 @@ class _WaitlistCard extends StatelessWidget {
 
   String _statusLabel(String? status) {
     return switch (status) {
-      'notified' => 'Notified',
-      'expired' => 'Expired',
+      'NOTIFIED' => 'Notified',
+      'EXPIRED' => 'Expired',
+      'CONFIRMED' => 'Confirmed',
       _ => 'Waiting',
     };
   }
